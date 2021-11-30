@@ -31,6 +31,8 @@ import java.util.Map;
 public class Rest {
   public static final HttpClient CLIENT =
       HttpClientBuilder.create()
+          .setMaxConnTotal(100)
+          .setMaxConnPerRoute(20)
           .addInterceptorFirst(new Rsp())
           .addInterceptorFirst(new Req())
           .build();
