@@ -354,13 +354,13 @@ public class Rest {
   }
 
   /**
-   * 取 JVM 设置系统属性（-D）和环境变量（export）的值<br/>
+   * 取 JVM 设置系统属性（-D）和环境变量（export）的值.
    * <p>
    * 系统属性优先于环境变量
    *
    * @param key 变量值
    * @param defaultValue  默认值
-   * @return
+   * @return 属性无符号整形值
    */
   public static int getEnvUint(String key, int defaultValue) {
     try {
