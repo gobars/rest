@@ -2,6 +2,8 @@ package com.github.gobars.rest;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
+import java.util.Objects;
+import java.util.Optional;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 import lombok.Value;
@@ -29,10 +31,14 @@ import java.util.Map;
 
 @Slf4j
 public class Rest {
+  /**
+   * MaxConnTotal、MaxConnPerRoute 可以通过设置系统参数或者环境变量的方式修改
+   */
   public static final HttpClient CLIENT =
       HttpClientBuilder.create()
-          .setMaxConnTotal(100)
-          .setMaxConnPerRoute(100)
+          .setMaxConnTotal(Optional.ofNullable(getUInt("REST_MAX_CONN_TOTAL")).orElse(100))
+          .setMaxConnPerRoute(
+              Optional.ofNullable(getUInt("REST_MAX_CONN_PER_ROUTE")).orElse(100))
           .addInterceptorFirst(new Rsp())
           .addInterceptorFirst(new Req())
           .build();
@@ -331,5 +337,29 @@ public class Rest {
         log.info("响应头 {}:{}", h.getName(), h.getValue());
       }
     }
+  }
+
+  /**
+   * 取 JVM 设置系统属性（-D）和环境变量（export）的值<br/>
+   * <p>
+   * 系统属性优先于环境变量
+   *
+   * @param key 变量值
+   * @return
+   */
+  static Integer getUInt(String key) {
+
+    try {
+      String v = System.getProperty(key);
+      if (Objects.nonNull(v)) {
+        return Integer.parseUnsignedInt(v);
+      }
+      v = System.getenv(key);
+      if (Objects.nonNull(v)) {
+        return Integer.parseUnsignedInt(v);
+      }
+    } catch (Exception ignore) {
+    }
+    return null;
   }
 }
