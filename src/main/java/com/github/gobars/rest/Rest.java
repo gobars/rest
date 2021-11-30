@@ -2,15 +2,32 @@ package com.github.gobars.rest;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
+import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.http.*;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpEntityEnclosingRequest;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpRequestInterceptor;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpResponseInterceptor;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.*;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpOptions;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -22,15 +39,16 @@ import org.apache.http.protocol.BasicHttpContext;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 
-import java.lang.reflect.Type;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 @Slf4j
 public class Rest {
+
+  /**
+   * MaxConnTotal、MaxConnPerRoute 可以通过设置系统参数或者环境变量的方式修改
+   */
   public static final HttpClient CLIENT =
       HttpClientBuilder.create()
+          .setMaxConnTotal(getEnvUint("REST_MAX_CONN_TOTAL", 100))
+          .setMaxConnPerRoute(getEnvUint("REST_MAX_CONN_PER_ROUTE", 100))
           .addInterceptorFirst(new Rsp())
           .addInterceptorFirst(new Req())
           .build();
@@ -241,7 +259,8 @@ public class Rest {
       return (Map<String, Object>) body;
     }
 
-    return JSON.parseObject(JSON.toJSONString(body), new TypeReference<Map<String, Object>>() {});
+    return JSON.parseObject(JSON.toJSONString(body), new TypeReference<Map<String, Object>>() {
+    });
   }
 
   private Object parseT(RestOption ro, HttpResponse rsp, RestRuntime rt) {
@@ -273,6 +292,7 @@ public class Rest {
   @EqualsAndHashCode(callSuper = true)
   @Value
   public static class HttpRestException extends RuntimeException {
+
     String uri;
     int code;
     transient HttpResponse response;
@@ -302,6 +322,7 @@ public class Rest {
    * <p>参考https://www.tutorialspoint.com/apache_httpclient/apache_httpclient_interceptors.htm
    */
   static class Req implements HttpRequestInterceptor {
+
     @Override
     public void process(HttpRequest r, HttpContext ctx) {
       RestOption ro = (RestOption) ctx.getAttribute(REST_OPTION_KEY);
@@ -317,6 +338,7 @@ public class Rest {
   }
 
   static class Rsp implements HttpResponseInterceptor {
+
     @Override
     public void process(HttpResponse r, HttpContext ctx) {
       RestOption ro = (RestOption) ctx.getAttribute(REST_OPTION_KEY);
@@ -329,5 +351,40 @@ public class Rest {
         log.info("响应头 {}:{}", h.getName(), h.getValue());
       }
     }
+  }
+
+  /**
+   * 取 JVM 设置系统属性（-D）和环境变量（export）的值<br/>
+   * <p>
+   * 系统属性优先于环境变量
+   *
+   * @param key 变量值
+   * @param defaultValue  默认值
+   * @return
+   */
+  public static int getEnvUint(String key, int defaultValue) {
+    try {
+      String env = getEnv(key);
+      if (Objects.isNull(env)) {
+        return defaultValue;
+      }
+      int value = Integer.parseInt(env);
+      return value <= 0 ? defaultValue : value;
+    } catch (Exception ignore) {
+    }
+    return defaultValue;
+  }
+
+  public static String getEnv(String key) {
+    String v = System.getProperty(key);
+    if (Objects.nonNull(v)) {
+      return v;
+    }
+    v = System.getenv(key);
+    if (Objects.nonNull(v)) {
+      return v;
+    }
+
+    return null;
   }
 }
