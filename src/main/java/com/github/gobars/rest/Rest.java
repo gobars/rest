@@ -1,12 +1,13 @@
 package com.github.gobars.rest;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.TypeReference;
 import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import com.github.gobars.rest.json.JsonMapper;
+import com.github.gobars.rest.json.TypeRef;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 import lombok.Value;
@@ -230,7 +231,7 @@ public class Rest {
     }
 
     if (ro.getRequestBody() != null) {
-      String payload = JSON.toJSONString(ro.getRequestBody());
+      String payload = JsonMapper.forNonNull().tryToJson(ro.getRequestBody());
       if (ro.isDump()) {
         log.info("请求体:{}", payload);
       }
@@ -259,7 +260,7 @@ public class Rest {
       return (Map<String, Object>) body;
     }
 
-    return JSON.parseObject(JSON.toJSONString(body), new TypeReference<Map<String, Object>>() {
+    return JsonMapper.forNonNull().tryFromJson(JsonMapper.forNonNull().tryToJson(body), new TypeRef<Map<String, Object>>() {
     });
   }
 
@@ -270,7 +271,7 @@ public class Rest {
 
     Type type = ro.getType();
     if (type != null) {
-      return JSON.parseObject(rt.getResultBody(), type);
+      return JsonMapper.forNonNull().tryFromJson(rt.getResultBody(), type);
     }
 
     Class<?> clazz = ro.getClazz();
@@ -283,7 +284,7 @@ public class Rest {
     }
 
     if (clazz != null) {
-      return JSON.parseObject(rt.getResultBody(), clazz);
+      return JsonMapper.forNonNull().tryFromJson(rt.getResultBody(), clazz);
     }
 
     return rt.getResultBody();
