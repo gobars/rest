@@ -9,4 +9,4 @@ target
 .factorypath
 .history
 /temp
-./dependency-reduced-pom.xml
+dependency-reduced-pom.xml
