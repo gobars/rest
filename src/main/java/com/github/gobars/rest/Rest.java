@@ -44,25 +44,26 @@ public class Rest {
           .setMaxConnPerRoute(getEnvUint("REST_MAX_CONN_PER_ROUTE", 100))
           .addInterceptorFirst(new Rsp())
           .addInterceptorFirst(new Req())
-          .setProxy(createProxy()) // new HttpHost("www.proxy.com", 8080, "http"))
+          //  http://www.proxy.com:8080
+          .setProxy(
+              createProxy(getEnv("REST_PROXY"))) // new HttpHost("www.proxy.com", 8080, "http"))
           .build();
 
-  private static HttpHost createProxy() {
-    String proxy = getEnv("REST_PROXY"); // http://www.proxy.com:8080
+  private static HttpHost createProxy(String proxy) {
     return proxy == null ? null : HttpHost.create(proxy);
   }
 
-  private final RequestConfig requestConfig =
-      RequestConfig.custom()
-          // 从连接池获取到连接的超时时间，如果是非连接池的话，该参数暂时没有发现有什么用处
-          .setConnectionRequestTimeout(30 * 1000)
-          // 指客户端和服务进行数据交互的时间，是指两者之间如果两个数据包之间的时间大于该时间则认为超时，而不是整个交互的整体时间，
-          // 比如如果设置1秒超时，如果每隔0.8秒传输一次数据，传输10次，总共8秒，这样是不超时的。
-          // 而如果任意两个数据包之间的时间超过了1秒，则超时。
-          .setSocketTimeout(30 * 1000)
-          // 建立连接的超时时间
-          .setConnectTimeout(30 * 1000)
-          .build();
+  private RequestConfig.Builder requestConfigBuilder() {
+    return RequestConfig.custom()
+        // 从连接池获取到连接的超时时间，如果是非连接池的话，该参数暂时没有发现有什么用处
+        .setConnectionRequestTimeout(30 * 1000)
+        // 指客户端和服务进行数据交互的时间，是指两者之间如果两个数据包之间的时间大于该时间则认为超时，而不是整个交互的整体时间，
+        // 比如如果设置1秒超时，如果每隔0.8秒传输一次数据，传输10次，总共8秒，这样是不超时的。
+        // 而如果任意两个数据包之间的时间超过了1秒，则超时。
+        .setSocketTimeout(30 * 1000)
+        // 建立连接的超时时间
+        .setConnectTimeout(30 * 1000);
+  }
 
   public <T> T exec(RestOption restOption) {
     return exec(restOption, new RestRuntime());
@@ -116,7 +117,11 @@ public class Rest {
     rt.setUrl(ro.getUrl());
 
     HttpRequestBase req = buildRequest(ro, rt);
-    req.setConfig(requestConfig);
+    RequestConfig.Builder rc = requestConfigBuilder();
+    if (ro.getProxy() != null) {
+      rc.setProxy(createProxy(ro.getProxy()));
+    }
+    req.setConfig(rc.build());
     jsonBody(ro, req, rt);
     copyHeaders(ro, req);
 

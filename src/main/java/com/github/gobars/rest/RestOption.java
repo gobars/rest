@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 public class RestOption implements Cloneable {
+  @Getter private String proxy;
   @Getter private String method;
   @Getter private String bizName;
   @Getter private Type type;
@@ -57,6 +58,12 @@ public class RestOption implements Cloneable {
 
   public RestOption POST() {
     return method("POST");
+  }
+
+  public RestOption proxy(String proxy) {
+    RestOption copy = this.clone();
+    copy.proxy = proxy;
+    return copy;
   }
 
   public RestOption method(String method) {
