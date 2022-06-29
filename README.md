@@ -35,3 +35,4 @@ User-Agent: Apache-HttpClient/4.5.12 (Java/11.0.8)
 
 1. env `REST_MAX_CONN_TOTAL` 设置 连接池总大小，默认值 100。设置方法： 使用 `java -DREST_MAX_CONN_TOTAL=100` 或者 启动前设置 shell 环境变量 `export REST_MAX_CONN_TOTAL=100`
 2. env `REST_MAX_CONN_PER_ROUTE` 设置 单个主机路由总大小，默认值 100。设置方法同上。
+3. env `REST_PROXY` 设置代理，示例值 `http://localhost:8080`。使用 `java -DREST_PROXY=http://www.proxy.com:8080` 或者 启动前设置 shell 环境变量 `export REST_PROXY=http://www.proxy.com:8080`

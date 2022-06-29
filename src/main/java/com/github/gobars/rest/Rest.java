@@ -13,13 +13,7 @@ import lombok.SneakyThrows;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.HttpRequest;
-import org.apache.http.HttpRequestInterceptor;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpResponseInterceptor;
+import org.apache.http.*;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpDelete;
@@ -43,16 +37,20 @@ import org.apache.http.util.EntityUtils;
 @Slf4j
 public class Rest {
 
-  /**
-   * MaxConnTotal、MaxConnPerRoute 可以通过设置系统参数或者环境变量的方式修改
-   */
+  /** MaxConnTotal、MaxConnPerRoute 可以通过设置系统参数或者环境变量的方式修改 */
   public static final HttpClient CLIENT =
       HttpClientBuilder.create()
           .setMaxConnTotal(getEnvUint("REST_MAX_CONN_TOTAL", 100))
           .setMaxConnPerRoute(getEnvUint("REST_MAX_CONN_PER_ROUTE", 100))
           .addInterceptorFirst(new Rsp())
           .addInterceptorFirst(new Req())
+          .setProxy(createProxy()) // new HttpHost("www.proxy.com", 8080, "http"))
           .build();
+
+  private static HttpHost createProxy() {
+    String proxy = getEnv("REST_PROXY"); // http://www.proxy.com:8080
+    return proxy == null ? null : HttpHost.create(proxy);
+  }
 
   private final RequestConfig requestConfig =
       RequestConfig.custom()
@@ -260,8 +258,9 @@ public class Rest {
       return (Map<String, Object>) body;
     }
 
-    return JsonMapper.forNonNull().tryFromJson(JsonMapper.forNonNull().tryToJson(body), new TypeRef<Map<String, Object>>() {
-    });
+    return JsonMapper.forNonNull()
+        .tryFromJson(
+            JsonMapper.forNonNull().tryToJson(body), new TypeRef<Map<String, Object>>() {});
   }
 
   private Object parseT(RestOption ro, HttpResponse rsp, RestRuntime rt) {
@@ -356,11 +355,11 @@ public class Rest {
 
   /**
    * 取 JVM 设置系统属性（-D）和环境变量（export）的值.
-   * <p>
-   * 系统属性优先于环境变量
+   *
+   * <p>系统属性优先于环境变量
    *
    * @param key 变量值
-   * @param defaultValue  默认值
+   * @param defaultValue 默认值
    * @return 属性无符号整形值
    */
   public static int getEnvUint(String key, int defaultValue) {
