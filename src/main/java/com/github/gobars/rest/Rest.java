@@ -1,11 +1,5 @@
 package com.github.gobars.rest;
 
-import java.lang.reflect.Type;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import com.github.gobars.rest.json.JsonMapper;
 import com.github.gobars.rest.json.TypeRef;
 import lombok.EqualsAndHashCode;
@@ -14,43 +8,123 @@ import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.http.*;
+import org.apache.http.auth.AUTH;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpOptions;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.methods.*;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
+import org.apache.http.conn.socket.PlainConnectionSocketFactory;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.conn.ssl.TrustStrategy;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.entity.mime.HttpMultipartMode;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.protocol.BasicHttpContext;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.protocol.HttpContext;
+import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.util.EntityUtils;
+
+import javax.net.ssl.SSLContext;
+import java.lang.reflect.Type;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 @Slf4j
 public class Rest {
-
+  // setup a Trust Strategy that allows all certificates.
+  public static final SSLContext sslContext = createSSLContext();
+  public static final PoolingHttpClientConnectionManager connMgr = createIgnoreCaConnManager();
+  public static final URLParseResult GlobalProxyURL = parseUrl(getEnv("REST_PROXY"));
   /** MaxConnTotal、MaxConnPerRoute 可以通过设置系统参数或者环境变量的方式修改 */
-  public static final HttpClient CLIENT =
-      HttpClientBuilder.create()
-          .setMaxConnTotal(getEnvUint("REST_MAX_CONN_TOTAL", 100))
-          .setMaxConnPerRoute(getEnvUint("REST_MAX_CONN_PER_ROUTE", 100))
-          .addInterceptorFirst(new Rsp())
-          .addInterceptorFirst(new Req())
-          //  http://www.proxy.com:8080
-          .setProxy(
-              createProxy(getEnv("REST_PROXY"))) // new HttpHost("www.proxy.com", 8080, "http"))
-          .build();
+  public static final HttpClient CLIENT = createHttpClient();
 
-  private static HttpHost createProxy(String proxy) {
-    return proxy == null ? null : HttpHost.create(proxy);
+  @SneakyThrows
+  private static HttpClient createHttpClient() {
+    val b =
+        HttpClientBuilder.create()
+            .setMaxConnTotal(getEnvUint("REST_MAX_CONN_TOTAL", 100))
+            .setMaxConnPerRoute(getEnvUint("REST_MAX_CONN_PER_ROUTE", 100))
+            .addInterceptorFirst(new Rsp())
+            .addInterceptorFirst(new Req());
+
+    b.setSSLContext(sslContext);
+    b.setConnectionManager(connMgr);
+
+    return b.build();
+  }
+
+  @SneakyThrows
+  private static PoolingHttpClientConnectionManager createIgnoreCaConnManager() {
+    // don't check Hostnames, either.
+    //      -- use SSLConnectionSocketFactory.getDefaultHostnameVerifier(), if you don't want to
+    // weaken
+    val hostnameVerifier = NoopHostnameVerifier.INSTANCE;
+
+    // here's the special part:
+    //      -- need to create an SSL Socket Factory, to use our weakened "trust strategy";
+    //      -- and create a Registry, to register it.
+    //
+    val sslSocketFactory = new SSLConnectionSocketFactory(sslContext, hostnameVerifier);
+    val socketFactoryRegistry =
+        RegistryBuilder.<ConnectionSocketFactory>create()
+            .register("http", PlainConnectionSocketFactory.getSocketFactory())
+            .register("https", sslSocketFactory)
+            .build();
+
+    // now, we create connection-manager using our Registry.
+    //      -- allows multi-threaded use
+    return new PoolingHttpClientConnectionManager(socketFactoryRegistry);
+  }
+
+  @SneakyThrows
+  private static SSLContext createSSLContext() {
+    return new SSLContextBuilder()
+        .loadTrustMaterial(null, (TrustStrategy) (chain, authType) -> true)
+        .build();
+  }
+
+  private static class URLParseResult {
+    public final URL url;
+    public final String username;
+    public final String password;
+
+    public URLParseResult(URL url, String username, String password) {
+      this.url = url;
+      this.username = username;
+      this.password = password;
+    }
+  }
+
+  @SneakyThrows
+  private static URLParseResult parseUrl(String proxy) {
+    if (proxy == null) {
+      return null;
+    }
+
+    // For passwords with '@', e.g. "http://user:p@ssw0rd@private.uri.org/some/service":
+    URL url = new URL(proxy);
+    String authority = url.getAuthority();
+    String username = null, password = null;
+    if (authority != null) {
+      String[] userInfo = authority.split(":", 2);
+      if (userInfo.length > 1) {
+        username = userInfo[0];
+        int passDelim = userInfo[1].lastIndexOf('@');
+        if (passDelim != -1) {
+          password = userInfo[1].substring(0, passDelim);
+        }
+      }
+    }
+
+    return new URLParseResult(url, username, password);
   }
 
   private RequestConfig.Builder requestConfigBuilder() {
@@ -116,17 +190,36 @@ public class Rest {
     rt.setMethod(fixMethod(ro));
     rt.setUrl(ro.getUrl());
 
-    HttpRequestBase req = buildRequest(ro, rt);
-    RequestConfig.Builder rc = requestConfigBuilder();
-    if (ro.getProxy() != null) {
-      rc.setProxy(createProxy(ro.getProxy()));
+    val ctx = HttpClientContext.create();
+    val req = buildRequest(ro, rt);
+    val rc = requestConfigBuilder();
+    URLParseResult r = GlobalProxyURL;
+    if (ro.isDisableGlobalProxy()) {
+      r = null;
+    } else if (ro.getProxy() != null || GlobalProxyURL != null) {
+      r = ro.getProxy() != null ? parseUrl(ro.getProxy()) : GlobalProxyURL;
+      URL u = r.url;
+      val proxyHost = new HttpHost(u.getHost(), u.getPort(), u.toURI().getScheme());
+      rc.setProxy(proxyHost);
+    }
+
+    if (r != null && r.username != null) {
+      val m = new HashMap<String, List<String>>();
+      String a = r.username + ":" + r.password;
+      val l = new ArrayList<String>();
+      byte[] b = a.getBytes(StandardCharsets.UTF_8);
+      String auth = "Basic " + Base64.getEncoder().encodeToString(b);
+      l.add(auth);
+      m.put(AUTH.PROXY_AUTH_RESP, l);
+      ro = ro.headers(m);
+
+      ctx.setAttribute(AUTH.PROXY_AUTH_RESP, auth);
     }
     req.setConfig(rc.build());
     jsonBody(ro, req, rt);
     copyHeaders(ro, req);
 
     HttpResponse rsp;
-    val ctx = new BasicHttpContext();
     ctx.setAttribute(REST_OPTION_KEY, ro);
     long start = System.currentTimeMillis();
 

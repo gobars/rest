@@ -16,28 +16,56 @@ import java.util.*;
 
 /** 使用海草命令，weed server，启动服务端，做测试服务器 */
 public class RestTest {
-  static RestServer restServer = new RestServer("go-rest-server");
-  static RestServer weedServer = new RestServer("weed", "server");
+//  static RestServer restServer = new RestServer("go-rest-server");
+//  static RestServer weedServer = new RestServer("weed", "server");
 
   @BeforeClass
   @SneakyThrows
   public static void beforeClass() {
-    restServer.start();
-    weedServer.start();
+//    restServer.start();
+//    weedServer.start();
 
-    Thread.sleep(6000L);
+//    Thread.sleep(6000L);
   }
 
   @AfterClass
   public static void afterClass() {
-    restServer.stop();
-    weedServer.stop();
+//    restServer.stop();
+//    weedServer.stop();
   }
 
   @Test
+  public void get1() {
+    // 1.1 全局代理 -> HTTPS
+    new Rest().exec(new RestOption().url("https://127.0.0.1:5003/v"));
+    // 1.1 (不走全局代理） HTTPS
+    new Rest().exec(new RestOption().disableGlobalProxy().url("https://127.0.0.1:5003/v"));
+  }
+
   public void get() {
-    String status = new Rest().exec(new RestOption().url("http://127.0.0.1:8080/status"));
-    System.out.println(status);
+    // 1.1 无代理 -> HTTPS
+    new Rest().exec(new RestOption().url("https://127.0.0.1:5003/v"));
+    // 1.2 无代理 -> HTTP
+    new Rest().exec(new RestOption().url("http://127.0.0.1:5004/v"));
+    // 2.1 HTTP 代理 -> HTTPS
+    new Rest().exec(new RestOption().proxy("http://127.0.0.1:7777").url("https://127.0.0.1:5003/v"));
+    // 2.2 HTTP 无代理 -> HTTP
+    new Rest().exec(new RestOption().proxy("http://127.0.0.1:7777").url("http://127.0.0.1:5004/v"));
+
+    // 3.1 HTTP 代理 (BASIC 认证) -> HTTPS
+    new Rest().exec(new RestOption().proxy("http://username:password@127.0.0.1:7778").url("https://127.0.0.1:5003/v"));
+    // 3.2 HTTP 代理 (BASIC 认证) -> HTTP
+    new Rest().exec(new RestOption().proxy("http://username:password@127.0.0.1:7778").url("http://127.0.0.1:5004/v"));
+
+    // 4.1 HTTPS 代理 -> HTTPS
+    new Rest().exec(new RestOption().proxy("https://127.0.0.1:2222").url("https://127.0.0.1:5003/v"));
+    // 4.2 HTTPS 代理 -> HTTP
+    new Rest().exec(new RestOption().proxy("https://127.0.0.1:2222").url("http://127.0.0.1:5004/v"));
+
+    // 5.1 HTTPS 代理 (BASIC 认证) -> HTTPS
+    new Rest().exec(new RestOption().proxy("https://bingoo:huang@127.0.0.1:2223").url("https://127.0.0.1:5003/v"));
+    // 5.2 HTTPS 代理 (BASIC 认证) -> HTTPS
+    new Rest().exec(new RestOption().proxy("https://bingoo:huang@127.0.0.1:2223").url("http://127.0.0.1:5004/v"));
   }
 
   @Data
