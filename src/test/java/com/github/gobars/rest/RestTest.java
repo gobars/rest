@@ -34,6 +34,12 @@ public class RestTest {
 //    weedServer.stop();
   }
 
+  // 启动模拟代理
+  // HTTP 代理：        fproxy -addr :7777
+  // HTTP 代理（认证）： fproxy -addr :7778 -auth username:password
+  // HTTPS 代理：       fproxy -addr :2222 -ca .cert/localhost.pem,.cert/localhost.key
+  // HTTPS 代理（认证）：fproxy -addr :2223 -ca .cert/localhost.pem,.cert/localhost.key -auth bingoo:huang
+
   @Test
   public void get1() {
     // 1.1 全局代理 -> HTTPS
@@ -42,6 +48,7 @@ public class RestTest {
     new Rest().exec(new RestOption().disableGlobalProxy().url("https://127.0.0.1:5003/v"));
   }
 
+  @Test
   public void get() {
     // 1.1 无代理 -> HTTPS
     new Rest().exec(new RestOption().url("https://127.0.0.1:5003/v"));
