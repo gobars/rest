@@ -111,10 +111,10 @@ public class Rest {
 
     // For passwords with '@', e.g. "http://user:p@ssw0rd@private.uri.org/some/service":
     URL url = new URL(proxy);
-    String authority = url.getAuthority();
+    String urlUserInfo = url.getUserInfo();
     String username = null, password = null;
-    if (authority != null) {
-      String[] userInfo = authority.split(":", 2);
+    if (urlUserInfo != null) {
+      String[] userInfo = urlUserInfo.split(":", 2);
       if (userInfo.length > 1) {
         username = userInfo[0];
         int passDelim = userInfo[1].lastIndexOf('@');
