@@ -117,10 +117,7 @@ public class Rest {
       String[] userInfo = urlUserInfo.split(":", 2);
       if (userInfo.length > 1) {
         username = userInfo[0];
-        int passDelim = userInfo[1].lastIndexOf('@');
-        if (passDelim != -1) {
-          password = userInfo[1].substring(0, passDelim);
-        }
+        password = userInfo[1];
       }
     }
 
