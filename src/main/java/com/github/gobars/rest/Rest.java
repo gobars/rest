@@ -39,9 +39,16 @@ import java.util.*;
 
 @Slf4j
 public class Rest {
-  // setup a Trust Strategy that allows all certificates.
+  // set up a Trust Strategy that allows all certificates.
   public static final SSLContext sslContext = createSSLContext();
-  public static final PoolingHttpClientConnectionManager connMgr = createIgnoreCaConnManager();
+  public static final PoolingHttpClientConnectionManager connMgr;
+
+  static  {
+    connMgr = createIgnoreCaConnManager();
+    connMgr.setMaxTotal(getEnvUint("REST_MAX_CONN_TOTAL", 100));
+    connMgr.setDefaultMaxPerRoute(getEnvUint("REST_MAX_CONN_PER_ROUTE", 100));
+  }
+
   public static final URLParseResult GlobalProxyURL = parseUrl(getEnv("REST_PROXY"));
   /** MaxConnTotal、MaxConnPerRoute 可以通过设置系统参数或者环境变量的方式修改 */
   public static final HttpClient CLIENT = createHttpClient();
@@ -50,8 +57,6 @@ public class Rest {
   private static HttpClient createHttpClient() {
     val b =
         HttpClientBuilder.create()
-            .setMaxConnTotal(getEnvUint("REST_MAX_CONN_TOTAL", 100))
-            .setMaxConnPerRoute(getEnvUint("REST_MAX_CONN_PER_ROUTE", 100))
             .addInterceptorFirst(new Rsp())
             .addInterceptorFirst(new Req());
 
