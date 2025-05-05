@@ -43,22 +43,21 @@ public class Rest {
   public static final SSLContext sslContext = createSSLContext();
   public static final PoolingHttpClientConnectionManager connMgr;
 
-  static  {
+  static {
     connMgr = createIgnoreCaConnManager();
     connMgr.setMaxTotal(getEnvUint("REST_MAX_CONN_TOTAL", 100));
     connMgr.setDefaultMaxPerRoute(getEnvUint("REST_MAX_CONN_PER_ROUTE", 100));
   }
 
   public static final URLParseResult GlobalProxyURL = parseUrl(getEnv("REST_PROXY"));
+
   /** MaxConnTotal、MaxConnPerRoute 可以通过设置系统参数或者环境变量的方式修改 */
   public static final HttpClient CLIENT = createHttpClient();
 
   @SneakyThrows
   private static HttpClient createHttpClient() {
     val b =
-        HttpClientBuilder.create()
-            .addInterceptorFirst(new Rsp())
-            .addInterceptorFirst(new Req());
+        HttpClientBuilder.create().addInterceptorFirst(new Rsp()).addInterceptorFirst(new Req());
 
     b.setSSLContext(sslContext);
     b.setConnectionManager(connMgr);
@@ -69,13 +68,15 @@ public class Rest {
   @SneakyThrows
   private static PoolingHttpClientConnectionManager createIgnoreCaConnManager() {
     // don't check Hostnames, either.
-    //      -- use SSLConnectionSocketFactory.getDefaultHostnameVerifier(), if you don't want to
+    // -- use SSLConnectionSocketFactory.getDefaultHostnameVerifier(), if you don't
+    // want to
     // weaken
     val hostnameVerifier = NoopHostnameVerifier.INSTANCE;
 
     // here's the special part:
-    //      -- need to create an SSL Socket Factory, to use our weakened "trust strategy";
-    //      -- and create a Registry, to register it.
+    // -- need to create an SSL Socket Factory, to use our weakened "trust
+    // strategy";
+    // -- and create a Registry, to register it.
     //
     val sslSocketFactory = new SSLConnectionSocketFactory(sslContext, hostnameVerifier);
     val socketFactoryRegistry =
@@ -85,7 +86,7 @@ public class Rest {
             .build();
 
     // now, we create connection-manager using our Registry.
-    //      -- allows multi-threaded use
+    // -- allows multi-threaded use
     return new PoolingHttpClientConnectionManager(socketFactoryRegistry);
   }
 
@@ -114,7 +115,8 @@ public class Rest {
       return null;
     }
 
-    // For passwords with '@', e.g. "http://user:p@ssw0rd@private.uri.org/some/service":
+    // For passwords with '@', e.g.
+    // "http://user:p@ssw0rd@private.uri.org/some/service":
     URL url = new URL(proxy);
     String urlUserInfo = url.getUserInfo();
     String username = null, password = null;
@@ -308,6 +310,9 @@ public class Rest {
     rt.setStatusCode(code);
     OkStatus okStatus = ro.getOkStatus();
     if (!okStatus.isOk(code)) {
+      if (rsp.getEntity() != null) {
+        EntityUtils.consumeQuietly(rsp.getEntity());
+      }
       throw new HttpRestException(ro.getUrl(), code, rsp);
     }
   }
